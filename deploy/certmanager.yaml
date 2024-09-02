@@ -1,0 +1,83 @@
+kind: Issuer
+apiVersion: cert-manager.io/v1
+metadata:
+  name: ca-bootstrap
+  namespace: kube-system
+spec:
+  selfSigned: {}
+---
+kind: Certificate
+apiVersion: cert-manager.io/v1
+metadata:
+  name: ca-root
+  namespace: kube-system
+spec:
+  secretName: ca-root
+  isCA: true
+  commonName: ca-root
+  subject:
+    countries: [ "FR" ]
+    organizations: [ "ManoMano Internal" ]
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  issuerRef:
+    kind: Issuer
+    name: ca-bootstrap
+---
+kind: Issuer
+apiVersion: cert-manager.io/v1
+metadata:
+  name: ca-root
+  namespace: kube-system
+spec:
+  ca:
+    secretName: ca-root
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/component: certificate
+    app.kubernetes.io/created-by: kubernetes-node-specific-sizing
+    app.kubernetes.io/instance: serving-cert
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: certificate
+    app.kubernetes.io/part-of: kubernetes-node-specific-sizing
+  name: node-specific-sizing-serving-cert
+  namespace: kube-system
+spec:
+  dnsNames:
+    - node-specific-sizing.kube-system.svc
+    - node-specific-sizing.kube-system.svc.cluster.local
+  issuerRef:
+    name: ca-root
+    kind: Issuer
+  secretName: node-specific-sizing-cert
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  duration: 2160h
+  renewBefore: 360h
+---
+kind: Certificate
+apiVersion: cert-manager.io/v1
+metadata:
+  name: node-specific-sizing-client-cert
+  namespace: kube-system
+spec:
+  issuerRef:
+    name: ca-root
+    kind: Issuer
+  commonName: api-server-client-cert-for-node-specific-sizing.manomano.tech
+  secretName: client-cert
+  duration: 2160h
+  renewBefore: 360h
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    size: 2048
+  usages:
+    - client auth
+    - server auth

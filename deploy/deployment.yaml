@@ -1,40 +1,38 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sidecar-injector
+  name: node-specific-sizing
   labels:
-    app: sidecar-injector
+    app: node-specific-sizing
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: sidecar-injector
+      app: node-specific-sizing
   template:
     metadata:
       labels:
-        app: sidecar-injector
+        app: node-specific-sizing
     spec:
-      serviceAccountName: sidecar-injector
+      serviceAccountName: node-specific-sizing
+      terminationGracePeriodSeconds: 10
       containers:
-        - name: sidecar-injector
-          image: sidecar-injector
-          imagePullPolicy: Always
-          args:
-          - -service-name=sidecar-injector
-          - -sidecar-config-file=/etc/webhook/config/sidecarconfig.yaml
+        - name: node-specific-sizing
+          image: node-specific-sizing:latest
+          imagePullPolicy: IfNotPresent
           env:
           - name: POD_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
-          lifecycle:
-            preStop:
-              exec:
-                command: ["/bin/sh", "-c", "/prestop.sh"]
           volumeMounts:
-          - name: webhook-config
-            mountPath: /etc/webhook/config
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+          securityContext:
+            runAsNonRoot: true
       volumes:
-      - name: webhook-config
-        configMap:
-          name: sidecar-injector
+        - name: cert
+          secret:
+            defaultMode: 420
+            secretName: node-specific-sizing-cert

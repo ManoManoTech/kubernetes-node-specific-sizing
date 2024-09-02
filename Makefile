@@ -19,7 +19,7 @@ KUSTOMIZE_VERSION?=v3.5.4
 KUSTOMIZE_ARCHIVE_NAME?=kustomize_$(KUSTOMIZE_VERSION)_$(GOHOSTOS)_$(GOHOSTARCH).tar.gz
 kustomize_dir:=$(dir $(KUSTOMIZE))
 
-IMAGE = quay.io/morvencao/sidecar-injector:latest
+IMAGE = node-specific-sizing:latest
 
 all: build
 .PHONY: all
@@ -59,7 +59,7 @@ test: fmt vet ## Run tests.
 
 .PHONY: build
 build: fmt vet ## Build binary.
-	go build -o bin/sidecar-injector ./cmd/
+	go build -o bin/node-specific-sizing ./cmd/
 
 .PHONY: docker-build
 docker-build: test ## Build docker image.
@@ -72,10 +72,19 @@ docker-push: ## Push docker image.
 ##@ Deployment
 
 deploy: kustomize
-	cp deploy/kustomization.yaml deploy/kustomization.yaml.tmp
-	cd deploy && $(KUSTOMIZE) edit set image sidecar-injector=$(IMAGE)
-	$(KUSTOMIZE) build deploy | $(KUBECTL) apply -f -
-	mv deploy/kustomization.yaml.tmp deploy/kustomization.yaml
+#	cp deploy/kustomization.yaml deploy/kustomization.yaml.tmp
+#	cd deploy && $(KUSTOMIZE) edit set image node-specific-sizing=$(IMAGE)
+	$(KUSTOMIZE) build deploy > deploy.yaml
+	$(KUBECTL) apply -f deploy.yaml
+	#mv deploy/kustomization.yaml.tmp deploy/kustomization.yaml
+
+.PHONY: docker-kind-load
+docker-kind-load: ## Share image with kind cluster
+	kind load docker-image -n ${KIND_CLUSTER} ${IMAGE}
+
+.PHONY: docker-k3d-load
+docker-k3d-load: ## Share image with kind cluster
+	k3d image import -m direct --trace -c ${K3D_CLUSTER} ${IMAGE}
 
 undeploy: kustomize
 	$(KUSTOMIZE) build deploy | $(KUBECTL) delete --ignore-not-found -f -

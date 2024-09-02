@@ -1,88 +1,77 @@
-# kube-sidecar-injector
+# kube-node-specific-sizing
 
-This repo is used for [a tutorial at Medium](https://medium.com/ibm-cloud/diving-into-kubernetes-mutatingadmissionwebhook-6ef3c5695f74) to create a Kubernetes [MutatingAdmissionWebhook](https://kubernetes.io/docs/admin/admission-controllers/#mutatingadmissionwebhook-beta-in-19) that injects a nginx sidecar container into pod prior to persistence of the object.
+Helps you resize pods created by a DaemonSet depending on the amount of allocatable resources present on the node.
 
-## Prerequisites
+## How to use
+
+1. Add the `node-specific-sizing.manomano.tech/enabled: "true"` label any pod you'd like to size depending on the node.
+   Only the `"true"` string works.
+   For DaemonSets - the intended use-case - this should therefore go in `spec: metadata: labels:`
+
+2. Override pod CPU/Memory Request/Limit based on node resources using the following annotations.
+    - `node-specific-sizing.manomano.tech/request-mcpu-per-node-cpu: 0.1`
+    - `node-specific-sizing.manomano.tech/limit-mcpu-per-node-cpu: 0.1`
+    - `node-specific-sizing.manomano.tech/request-memory-per-node-memory: 0.1`
+    - `node-specific-sizing.manomano.tech/limit-memory-per-node-memory: 0.1`
+
+3. Optionally set absolute minimums, maximums and exclusions
+   NB: Only pods with the `node-specific-sizing.manomano.tech/enabled: "true"` label will see their resource modified.
+   - `node-specific-sizing.manomano.tech/minimum-cpu-request: 0.5`
+   - `node-specific-sizing.manomano.tech/minimum-cpu-limit: 0.5`
+   - `node-specific-sizing.manomano.tech/maximum-cpu-request: 0.5`
+   - `node-specific-sizing.manomano.tech/maximum-cpu-limit: 0.5`
+   
+
+4. Optionally exclude some containers from dynamic-sizing.
+    - `node-specific-sizing.manomano.tech/exclude-containers: istio-init,istio-proxy`
+
+5. Take care of the following:
+    - In some instances, if limit ends up being below request it will be adjusted to be equal to the request.
+    - WARNING: We have not tested all cases of partial configuration or weird mish-mashes. 
+    - You're safer defining both requests and limits, or just requests if the underlying DaemonSet does not have limits.
+    - Having some containers define a request or limit while others do not is unsupported.
+
+## Resource Sizing Algorithm
+
+Assuming a pod is eligible for dynamic sizing, the mutating webhook computes new resources by following these steps:
+
+- For each container in the pod, and for each tunable [1], compute the tunable's relative value per container.
+  For any given container, `relative_tunable = container_tunable / (sum(container_tunables) - sum(excluded_container_tunables))` 
+- Derive a `pod_tunable_budget = allocatable_tunable_on_node * configured_pod_proportion - sum(excluded_container_tunables)`. This represents the resources that will be given to the pod.
+- Clamp `pod_tunable_budget` if minimums and/or maximums are set for that tunable.
+- Finally, `new_absolute_tunable = pod_tunable_budget * relative_tunable` spreads the budget around.
+
+If no containers are excluded from sizing, the requests/limits proportions between the different containers stays the same.
+
+## Development
+
+### Prerequisites
 
 - [git](https://git-scm.com/downloads)
 - [go](https://golang.org/dl/) version v1.17+
 - [docker](https://docs.docker.com/install/) version 19.03+
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) version v1.19+
-- Access to a Kubernetes v1.19+ cluster with the `admissionregistration.k8s.io/v1` API enabled. Verify that by the following command:
-
-```
-kubectl api-versions | grep admissionregistration.k8s.io
-```
-The result should be:
-```
-admissionregistration.k8s.io/v1
-admissionregistration.k8s.io/v1beta1
-```
-
-> Note: In addition, the `MutatingAdmissionWebhook` and `ValidatingAdmissionWebhook` admission controllers should be added and listed in the correct order in the admission-control flag of kube-apiserver.
+- [k3d](...) recommended.
 
 ## Build and Deploy
 
 1. Build and push docker image:
 
 ```bash
-make docker-build docker-push IMAGE=quay.io/<your_quayio_username>/sidecar-injector:latest
+make docker-build docker-push IMAGE=quay.io/<your_quayio_username>/node-specific-sizing:latest
 ```
 
-2. Deploy the kube-sidecar-injector to kubernetes cluster:
+2. Deploy the kube-node-specific-sizing to kubernetes cluster:
 
 ```bash
-make deploy IMAGE=quay.io/<your_quayio_username>/sidecar-injector:latest
+make deploy IMAGE=quay.io/<your_quayio_username>/node-specific-sizing:latest
 ```
 
-3. Verify the kube-sidecar-injector is up and running:
+3. Verify the kube-node-specific-sizing deployment is up and running:
 
 ```bash
-# kubectl -n sidecar-injector get pod
-# kubectl -n sidecar-injector get pod
+# kubectl -n node-specific-sizing get pod
+# kubectl -n node-specific-sizing get pod
 NAME                                READY   STATUS    RESTARTS   AGE
-sidecar-injector-7c8bc5f4c9-28c84   1/1     Running   0          30s
+node-specific-sizing-dc75b5d95-spqs7   1/1     Running   0          30s
 ```
-
-## How to use
-
-1. Create a new namespace `test-ns` and label it with `sidecar-injector=enabled`:
-
-```
-# kubectl create ns test-ns
-# kubectl label namespace test-ns sidecar-injection=enabled
-# kubectl get namespace -L sidecar-injection
-NAME                 STATUS   AGE   SIDECAR-INJECTION
-default              Active   26m
-test-ns              Active   13s   enabled
-kube-public          Active   26m
-kube-system          Active   26m
-sidecar-injector     Active   17m
-```
-
-2. Deploy an app in Kubernetes cluster, take `alpine` app as an example
-
-```bash
-kubectl -n test-ns run alpine \
-    --image=alpine \
-    --restart=Never \
-    --command -- sleep infinity
-```
-
-3. Verify sidecar container is injected:
-
-```
-# kubectl -n test-ns get pod
-NAME                     READY     STATUS        RESTARTS   AGE
-alpine                   2/2       Running       0          10s
-# kubectl -n test-ns get pod alpine -o jsonpath="{.spec.containers[*].name}"
-alpine sidecar-nginx
-```
-
-## Troubleshooting
-
-Sometimes you may find that pod is injected with sidecar container as expected, check the following items:
-
-1. The sidecar-injector pod is in running state and no error logs.
-2. The namespace in which application pod is deployed has the correct labels(`sidecar-injector=enabled`) as configured in `mutatingwebhookconfiguration`.
-3. Check if the application pod has annotation `sidecar-injector-webhook.morven.me/inject:"yes"`.

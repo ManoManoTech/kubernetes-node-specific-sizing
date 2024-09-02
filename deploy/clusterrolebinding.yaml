@@ -1,14 +1,14 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: sidecar-injector
+  name: node-specific-sizing
   labels:
-    app: sidecar-injector
+    app: node-specific-sizing
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: sidecar-injector
+  name: node-specific-sizing
 subjects:
 - kind: ServiceAccount
-  name: sidecar-injector
-  namespace: sidecar-injector
+  name: node-specific-sizing
+  namespace: kube-system

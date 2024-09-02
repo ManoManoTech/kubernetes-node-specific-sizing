@@ -1,12 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: sidecar-injector
+  name: node-specific-sizing
   labels:
-    app: sidecar-injector
+    app: node-specific-sizing
 spec:
   ports:
   - port: 443
     targetPort: 8443
   selector:
-    app: sidecar-injector
+    app: node-specific-sizing
+

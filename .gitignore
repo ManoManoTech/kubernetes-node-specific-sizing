@@ -16,3 +16,4 @@ build/_output
 
 # GOPATH
 .go
+.idea

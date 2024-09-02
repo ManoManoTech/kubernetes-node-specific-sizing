@@ -1,0 +1,7 @@
+[tools]
+go = "1.23"
+cmctl = "cmd/ctl/v1.14.7"
+
+[env]
+LOG_DEVEL = "true"
+LOG_LEVEL = "debug"
