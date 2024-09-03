@@ -98,8 +98,8 @@ if [[ "$OPT_IN_MODE" == 0 || "$WITH_WORKLOAD" == 1 ]]; then
           app: sleep
           node-specific-sizing.manomano.tech/enabled: "true"
         annotations:
-          node-specific-sizing.manomano.tech/request-memory-per-node-memory: "0.09"
-          node-specific-sizing.manomano.tech/limit-memory-per-node-memory: "0.05"
+          node-specific-sizing.manomano.tech/request-memory-fraction: "0.05"
+          node-specific-sizing.manomano.tech/limit-memory-fraction: "0.09"
       spec:
         terminationGracePeriodSeconds: 0
         containers:
