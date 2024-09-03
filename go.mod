@@ -1,9 +1,9 @@
-module github.com/morvencao/kube-node-specific-sizing
+module github.com/ManoManoTech/kubernetes-node-specific-sizing
 
 go 1.23
 
 require (
-	go.uber.org/zap v1.26.0
+	go.uber.org/zap v1.27.0
 	k8s.io/api v0.31.0
 	k8s.io/apimachinery v0.31.0
 	sigs.k8s.io/controller-runtime v0.19.0

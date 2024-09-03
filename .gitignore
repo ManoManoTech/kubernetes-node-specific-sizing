@@ -18,3 +18,4 @@ build/_output
 .go
 .idea
 bin/kustomize
+bin/node-specific-sizing

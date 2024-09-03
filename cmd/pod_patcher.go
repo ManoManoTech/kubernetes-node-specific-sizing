@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	rps "github.com/morvencao/kube-node-specific-sizing/pkg/resource_properties"
+	rps "github.com/ManoManoTech/kubernetes-node-specific-sizing/pkg/resource_properties"
 	"go.uber.org/zap"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
