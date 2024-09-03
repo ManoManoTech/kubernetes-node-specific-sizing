@@ -13,6 +13,7 @@ RUN \
 
 # Copy the go source
 COPY cmd/ cmd/
+COPY pkg/ pkg/
 
 ARG TARGETOS
 ARG TARGETARCH

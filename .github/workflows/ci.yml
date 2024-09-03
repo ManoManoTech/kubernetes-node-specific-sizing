@@ -1,0 +1,39 @@
+name: CI
+on: [pull_request]
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    container: docker.io/library/golang:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify go.mod
+        run: go mod tidy
+#      - name: Run lint
+#        run: make lint
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    container: docker.io/library/golang:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Setup Go environment
+        uses: actions/setup-go@v5.0.2
+        with:
+          go-version-file: 'go.mod'
+      - name: Go Build
+        run: make build
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    container: docker.io/library/golang:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Tests
+        run: make test
