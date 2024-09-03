@@ -17,3 +17,4 @@ build/_output
 # GOPATH
 .go
 .idea
+bin/kustomize
