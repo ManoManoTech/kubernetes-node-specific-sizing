@@ -59,7 +59,7 @@ test: fmt vet ## Run tests.
 
 .PHONY: build
 build: fmt vet ## Build binary.
-	go build -o bin/node-specific-sizing ./cmd/
+	GOFLAGS=-buildvcs=false go build -o bin/node-specific-sizing ./cmd/
 
 .PHONY: docker-build
 docker-build: test ## Build docker image.
