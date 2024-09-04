@@ -19,3 +19,4 @@ build/_output
 .idea
 bin/kustomize
 bin/node-specific-sizing
+deploy.yaml
