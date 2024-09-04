@@ -85,10 +85,10 @@ jobs:
           path: deploy/deploy.yaml
           name: deploy.yaml
 
-#      - uses: xresloader/upload-to-github-release@v1
-#        if: github.event_name == 'release' && github.event.action == 'published'
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#        with:
-#          file: deploy.yaml
-#          release_id: ${{ github.event.release.id }}
+      - uses: xresloader/upload-to-github-release@v1
+        if: github.event_name == 'release' && github.event.action == 'published'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          file: deploy.yaml
+          release_id: ${{ github.event.release.id }}
