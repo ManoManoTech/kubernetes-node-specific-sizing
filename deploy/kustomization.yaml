@@ -9,4 +9,4 @@ resources:
 - deployment.yaml
 - serviceaccount.yaml
 - mutatingadmissionwebhook.yaml
-- service-dev.yaml
+- service.yaml
