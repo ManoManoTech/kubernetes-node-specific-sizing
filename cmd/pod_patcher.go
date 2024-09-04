@@ -34,14 +34,15 @@ func computeProportionalResourceRequirements(pod *corev1.Pod) map[string]*rps.Re
 	return containerRequirements
 }
 
-func computePodResourceBudget(fractions *rps.ResourceProperties, node *corev1.Node) *rps.ResourceProperties {
+func computePodResourceBudget(userSettings *rps.ResourceProperties, node *corev1.Node) *rps.ResourceProperties {
 	podResourceBudget := rps.New()
-	for prop := range fractions.All() {
+	for prop := range userSettings.All() {
 		if nodeCapacity, ok := node.Status.Capacity[prop.ResourceName()]; ok {
 			qty := nodeCapacity.AsApproximateFloat64()
-			podResourceBudget.BindPropertyFloat(prop.Property(), prop.ResourceName(), qty*prop.Value())
+			podResourceBudget.BindPropertyFloat(rps.ResourceQuantity, prop.Property(), prop.ResourceName(), qty*prop.Value())
 		}
 	}
+	podResourceBudget.ClampRequestsAndLimits(userSettings)
 	return podResourceBudget
 }
 
@@ -61,7 +62,10 @@ func multiplyQuantity(quantity resource.Quantity, multiplier float64) *resource.
 	}
 }
 
-func computePodContainerResourceBudget(containersProportionalResourceRequirements map[string]*rps.ResourceProperties, podResourceBudget *rps.ResourceProperties) map[string]*rps.ResourceProperties {
+func computePodContainerResourceBudget(
+	containersProportionalResourceRequirements map[string]*rps.ResourceProperties,
+	podResourceBudget *rps.ResourceProperties,
+) map[string]*rps.ResourceProperties {
 	result := make(map[string]*rps.ResourceProperties)
 	for containerName, proportionalResourceRequirements := range containersProportionalResourceRequirements {
 		result[containerName] = proportionalResourceRequirements.Mul(podResourceBudget)
@@ -120,7 +124,7 @@ func createPatch(ctx context.Context, pod *corev1.Pod) ([]byte, error) {
 
 	zap.L().Debug("Starting patch process")
 
-	err, fractions := rps.NewFromAnnotations(pod.Annotations)
+	err, userSettings := rps.NewFromAnnotations(pod.Annotations)
 	if err != nil {
 		return nil, fmt.Errorf("problem parsing annotations: %w", err)
 	}
@@ -151,7 +155,7 @@ func createPatch(ctx context.Context, pod *corev1.Pod) ([]byte, error) {
 	// We need pod budget = node resources * nssConfig.nodeResourcesFractions
 	// When we have pod budget we want pod container budget = podBudget * containersProportionalRequirements
 	// Then set values
-	podResourceBudget := computePodResourceBudget(fractions, &node)
+	podResourceBudget := computePodResourceBudget(userSettings, &node)
 
 	zap.L().Debug("podResourceBudget", zap.Any("pRB", *podResourceBudget))
 

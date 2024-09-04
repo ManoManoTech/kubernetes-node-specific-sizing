@@ -16,9 +16,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"math"
 	"strconv"
+	"strings"
 )
 
 type ResourceProperty string
+type ResourceKind string
 
 const (
 	ResourceInvalid    ResourceProperty = "invalid"
@@ -26,14 +28,27 @@ const (
 	ResourceLimits     ResourceProperty = "limits"
 	ResourcePodMinimum ResourceProperty = "pod-minimum"
 	ResourcePodMaximum ResourceProperty = "pod-maximum"
+
+	ResourceFraction ResourceKind = "fraction"
+	ResourceQuantity ResourceKind = "quantity"
 )
 
 var allValidResourceProperties = []ResourceProperty{ResourceRequests, ResourceLimits, ResourcePodMinimum, ResourcePodMaximum}
 
 type ResourcePropertyBinding struct {
+	resourceKind ResourceKind
 	resourceProp ResourceProperty
 	resourceName corev1.ResourceName
 	value        float64
+}
+
+func NewBinding(resourceKind ResourceKind, resourceProp ResourceProperty, resourceName corev1.ResourceName, value float64) *ResourcePropertyBinding {
+	return &ResourcePropertyBinding{
+		resourceKind: resourceKind,
+		resourceProp: resourceProp,
+		resourceName: resourceName,
+		value:        value,
+	}
 }
 
 func (rpb *ResourcePropertyBinding) ResourceName() corev1.ResourceName {
@@ -48,16 +63,37 @@ func (rpb *ResourcePropertyBinding) Value() float64 {
 	return rpb.value
 }
 
+func (rpb *ResourcePropertyBinding) SetValue(v float64) {
+	rpb.value = v
+}
+
+func (rpb *ResourcePropertyBinding) String() string {
+	return fmt.Sprintf("%s.%s=%f=%s (%s)", rpb.resourceProp, rpb.resourceName, rpb.value, rpb.HumanValue(), rpb.resourceKind)
+}
+
+func appropriateIntegerExponent(n float64, base float64) int {
+	if n == 0 {
+		return 0
+	}
+	log := math.Log(n) / math.Log(base)
+	truncatedLog := int(math.Trunc(log))
+	return (truncatedLog / 3) * 3 // (8 / 3) * 3 = 6, as everybody knows
+}
+
 // HumanValue converts from the internal float to a string that looks like
 // the usual suffixed representation, i.e. 2G or 200m
 func (rpb *ResourcePropertyBinding) HumanValue() string {
+	if rpb.resourceKind == ResourceFraction {
+		return strconv.FormatFloat(rpb.value, 'f', -1, 64)
+	}
+
 	milliQty := rpb.value * 1000
 	if milliQty > 10_000 {
-		scale := math.Log10(rpb.value)
+		scale := appropriateIntegerExponent(rpb.value, 10.0) // we should be aware if we're not a power of 10 but a power of 2 instead, to preserve Mi/Gi suffixes
 		exp := math.Pow10(int(scale))
 		return resource.NewScaledQuantity(int64(math.Floor(rpb.value/exp)), resource.Scale(scale)).String()
 	} else {
-		return resource.NewMilliQuantity(int64(milliQty), resource.BinarySI).String()
+		return resource.NewMilliQuantity(int64(milliQty), resource.DecimalSI).String()
 	}
 }
 
@@ -67,14 +103,14 @@ func (rpb *ResourcePropertyBinding) PropertyJsonPath(containerIndex int) string 
 
 // We could technically allow other packages to register or modify the supported annotations. Should we? File an issue!
 var supportedAnnotations = map[string]ResourcePropertyBinding{
-	"node-specific-sizing.manomano.tech/request-cpu-fraction":    {resourceProp: ResourceRequests, resourceName: corev1.ResourceCPU},
-	"node-specific-sizing.manomano.tech/request-memory-fraction": {resourceProp: ResourceRequests, resourceName: corev1.ResourceMemory},
-	"node-specific-sizing.manomano.tech/limit-cpu-fraction":      {resourceProp: ResourceLimits, resourceName: corev1.ResourceCPU},
-	"node-specific-sizing.manomano.tech/limit-memory-fraction":   {resourceProp: ResourceLimits, resourceName: corev1.ResourceMemory},
-	"node-specific-sizing.manomano.tech/minimum-cpu-request":     {resourceProp: ResourcePodMinimum, resourceName: corev1.ResourceCPU},
-	"node-specific-sizing.manomano.tech/maximum-cpu-request":     {resourceProp: ResourcePodMaximum, resourceName: corev1.ResourceCPU},
-	"node-specific-sizing.manomano.tech/minimum-memory-request":  {resourceProp: ResourcePodMinimum, resourceName: corev1.ResourceMemory},
-	"node-specific-sizing.manomano.tech/maximum-memory-request":  {resourceProp: ResourcePodMaximum, resourceName: corev1.ResourceMemory},
+	"node-specific-sizing.manomano.tech/request-cpu-fraction":    {resourceKind: ResourceFraction, resourceProp: ResourceRequests, resourceName: corev1.ResourceCPU},
+	"node-specific-sizing.manomano.tech/request-memory-fraction": {resourceKind: ResourceFraction, resourceProp: ResourceRequests, resourceName: corev1.ResourceMemory},
+	"node-specific-sizing.manomano.tech/limit-cpu-fraction":      {resourceKind: ResourceFraction, resourceProp: ResourceLimits, resourceName: corev1.ResourceCPU},
+	"node-specific-sizing.manomano.tech/limit-memory-fraction":   {resourceKind: ResourceFraction, resourceProp: ResourceLimits, resourceName: corev1.ResourceMemory},
+	"node-specific-sizing.manomano.tech/minimum-cpu":             {resourceKind: ResourceQuantity, resourceProp: ResourcePodMinimum, resourceName: corev1.ResourceCPU},
+	"node-specific-sizing.manomano.tech/minimum-memory":          {resourceKind: ResourceQuantity, resourceProp: ResourcePodMinimum, resourceName: corev1.ResourceMemory},
+	"node-specific-sizing.manomano.tech/maximum-cpu":             {resourceKind: ResourceQuantity, resourceProp: ResourcePodMaximum, resourceName: corev1.ResourceCPU},
+	"node-specific-sizing.manomano.tech/maximum-memory":          {resourceKind: ResourceQuantity, resourceProp: ResourcePodMaximum, resourceName: corev1.ResourceMemory},
 }
 
 type ResourceProperties struct {
@@ -98,7 +134,7 @@ func NewFromAnnotations(annotations map[string]string) (error, *ResourceProperti
 
 	for supportedAnnotation, supportedBinding := range supportedAnnotations {
 		if value, ok := annotations[supportedAnnotation]; ok {
-			err := result.BindPropertyString(supportedBinding.resourceProp, supportedBinding.resourceName, value)
+			err := result.BindPropertyString(supportedBinding.resourceKind, supportedBinding.resourceProp, supportedBinding.resourceName, value)
 			if err != nil {
 				return err, nil
 			}
@@ -106,6 +142,15 @@ func NewFromAnnotations(annotations map[string]string) (error, *ResourceProperti
 	}
 
 	return nil, result
+}
+
+func (rp *ResourceProperties) String() string {
+	sb := strings.Builder{}
+	for rp := range rp.All() {
+		sb.WriteString(rp.String())
+		sb.WriteByte('\n')
+	}
+	return sb.String()
 }
 
 // GetValue returns (value, true) of an existing binding, or (0, false) for an unbound prop
@@ -137,51 +182,62 @@ func (rp *ResourceProperties) Bind(bind ResourcePropertyBinding) {
 }
 
 // BindPropertyFloat binds a given resource property to a float value
-func (rp *ResourceProperties) BindPropertyFloat(prop ResourceProperty, res corev1.ResourceName, value float64) {
+func (rp *ResourceProperties) BindPropertyFloat(kind ResourceKind, prop ResourceProperty, res corev1.ResourceName, value float64) {
 	if existing, ok := rp.props[prop][res]; ok {
 		existing.value = value
 	} else {
-		rp.props[prop][res] = &ResourcePropertyBinding{prop, res, value}
+		rp.props[prop][res] = &ResourcePropertyBinding{kind, prop, res, value}
 	}
 }
 
-// BindPropertyString binds a given resource property to a float value by parsing it from a string.
-func (rp *ResourceProperties) BindPropertyString(prop ResourceProperty, res corev1.ResourceName, value string) error {
+func parseFraction(value string) (float64, error) {
 	result, err := strconv.ParseFloat(value, 64)
+
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if result <= 0 {
 		// We forbid 0 included because it makes no sense as a request or limit
-		return fmt.Errorf("%s is not a valid fraction: cannot be <= 0", value)
+		return 0, fmt.Errorf("%s is not a valid fraction: cannot be <= 0", value)
 	}
 
 	if result > 1 {
-		return fmt.Errorf("%s is not a valid fraction: cannot be > 1", value)
+		return 0, fmt.Errorf("%s is not a valid fraction: cannot be > 1", value)
 	}
 
-	rp.BindPropertyFloat(prop, res, result)
-
-	return nil
+	return result, nil
 }
 
-// IncreaseBoundProperty mutates a bound value by adding an increment to it. Calling IncreaseBoundProperty() for an unbound
-// property will bind it to the increment, similarly to BindPropertyFloat.
-func (rp *ResourceProperties) IncreaseBoundProperty(prop ResourceProperty, res corev1.ResourceName, increment float64) {
-	if bind, ok := rp.props[prop][res]; ok {
-		bind.value += increment
+func parseQuantity(value string) (float64, error) {
+	qty, err := resource.ParseQuantity(value)
+	if err != nil {
+		return 0, err
+	}
+	return qty.AsApproximateFloat64(), nil
+}
+
+// BindPropertyString binds a given resource property to a float value by parsing it from a string.
+// The parsing is different whether the kind is a fraction or a quantity:
+//   - For fractions, a floating point number between 0 and 1 (excluded) is expected.
+//     I'm ~into the idea of support N/M rationals, but that might be purely a curiosity thing.
+//   - For quantities, any number that Kubernetes would accept will do. That includes many quantities with SI suffixes, like 100m or 2G
+func (rp *ResourceProperties) BindPropertyString(kind ResourceKind, prop ResourceProperty, res corev1.ResourceName, value string) error {
+	var err error
+	var parsedValue float64
+
+	if kind == ResourceFraction {
+		parsedValue, err = parseFraction(value)
 	} else {
-		rp.props[prop][res] = &ResourcePropertyBinding{prop, res, increment}
+		parsedValue, err = parseQuantity(value)
 	}
-}
 
-// ScaleBoundProperty mutates a bound value by multiplying it by a scale factor. Calling ScaleBoundProperty() for an unbound
-// property is a no-op.
-func (rp *ResourceProperties) ScaleBoundProperty(prop ResourceProperty, res corev1.ResourceName, factor float64) {
-	if bind, ok := rp.props[prop][res]; ok {
-		bind.value *= factor
+	if err != nil {
+		return fmt.Errorf("%s cannot be parsed as a %s: %s", value, kind, err)
 	}
+
+	rp.BindPropertyFloat(kind, prop, res, parsedValue)
+	return nil
 }
 
 // Add merges two sets of properties into the receiver, by adding properties values from the added props, creating new
@@ -201,21 +257,28 @@ func (rp *ResourceProperties) Add(operand *ResourceProperties) {
 // AddResourceRequirements merge a Kubernetes ResourceRequirements to the props
 func (rp *ResourceProperties) AddResourceRequirements(reqs *corev1.ResourceRequirements) {
 	for name, quantity := range reqs.Requests {
-		rp.BindPropertyFloat(ResourceRequests, name, quantity.AsApproximateFloat64())
+		rp.BindPropertyFloat(ResourceQuantity, ResourceRequests, name, quantity.AsApproximateFloat64())
 	}
 
 	for name, quantity := range reqs.Limits {
-		rp.BindPropertyFloat(ResourceLimits, name, quantity.AsApproximateFloat64())
+		rp.BindPropertyFloat(ResourceQuantity, ResourceLimits, name, quantity.AsApproximateFloat64())
 	}
 }
 
 // Mul produces new resource properties by multiplying the receiver values by the operand values
 // Props unset on either side of the operation are unset on the result rather than set to zero.
+//
+// The output kind depends on the input kind : multiplying two fractions produces another fraction,
+// while any other combination produces a quantity.
 func (rp *ResourceProperties) Mul(operand *ResourceProperties) *ResourceProperties {
 	result := New()
 	for ourBinding := range rp.All() {
 		if otherBinding, ok := operand.props[ourBinding.resourceProp][ourBinding.resourceName]; ok {
-			result.BindPropertyFloat(ourBinding.resourceProp, ourBinding.resourceName, ourBinding.value*otherBinding.value)
+			kind := ResourceQuantity
+			if ourBinding.resourceKind == ResourceFraction && otherBinding.resourceKind == ResourceFraction {
+				kind = ResourceFraction
+			}
+			result.BindPropertyFloat(kind, ourBinding.resourceProp, ourBinding.resourceName, ourBinding.value*otherBinding.value)
 		}
 	}
 	return result
@@ -228,11 +291,21 @@ func (rp *ResourceProperties) Mul(operand *ResourceProperties) *ResourceProperti
 //
 // If some props are defined on the operand but not on the receiver, then these props will be absent
 // from the result.
+//
+// The ResourceKind algebra is as follows:
+// - quantity / quantity => fraction
+// - fraction / quantity => quantity (weird way to put things, consider using Mul instead)
+// - quantity / fraction => quantity (weird way to put things, consider using Mul instead)
+// - fraction / fraction => fraction
 func (rp *ResourceProperties) Div(operand *ResourceProperties) *ResourceProperties {
 	result := New()
 	for ourBinding := range rp.All() {
 		otherBinding := operand.props[ourBinding.resourceProp][ourBinding.resourceName]
-		result.BindPropertyFloat(ourBinding.resourceProp, ourBinding.resourceName, ourBinding.value/otherBinding.value)
+		kind := ResourceQuantity
+		if ourBinding.resourceKind == otherBinding.resourceKind {
+			kind = ResourceFraction
+		}
+		result.BindPropertyFloat(kind, ourBinding.resourceProp, ourBinding.resourceName, ourBinding.value/otherBinding.value)
 	}
 	return result
 }
@@ -264,7 +337,28 @@ func (rp *ResourceProperties) ForceLimitAboveRequest() {
 
 		if hasRequest && hasLimit && (request.Value() > limit.Value()) {
 			// XXX log warning, we shouldn't have to do this but because of float imprecision, we sometimes do
-			rp.BindPropertyFloat(ResourceRequests, resourceName, limit.Value())
+			rp.BindPropertyFloat(request.resourceKind, ResourceRequests, resourceName, limit.Value())
+		}
+	}
+}
+
+// ClampRequestsAndLimits goes over every bound property. If, for any given resourceName, a limit or a requests needs
+// to be clamped according to the matching minimum or maximum from userSettings, it will be.
+func (rp *ResourceProperties) ClampRequestsAndLimits(userSettings *ResourceProperties) {
+	// It could be asserted that the receiver is only made of
+	for resourceName := range rp.allResourceNames() {
+		minimum, hasMinimum := userSettings.props[ResourcePodMinimum][resourceName]
+		maximum, hasMaximum := userSettings.props[ResourcePodMaximum][resourceName]
+
+		for _, prop := range []ResourceProperty{ResourceLimits, ResourceRequests} {
+			if bind, isBound := rp.props[prop][resourceName]; isBound {
+				if hasMinimum && bind.Value() < minimum.Value() {
+					bind.SetValue(minimum.Value())
+				}
+				if hasMaximum && bind.Value() > maximum.Value() {
+					bind.SetValue(maximum.Value())
+				}
+			}
 		}
 	}
 }

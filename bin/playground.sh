@@ -100,6 +100,8 @@ if [[ "$OPT_IN_MODE" == 0 || "$WITH_WORKLOAD" == 1 ]]; then
         annotations:
           node-specific-sizing.manomano.tech/request-memory-fraction: "0.05"
           node-specific-sizing.manomano.tech/limit-memory-fraction: "0.09"
+          node-specific-sizing.manomano.tech/minimum-memory: "40M"
+          node-specific-sizing.manomano.tech/maximum-memory: "742M"
       spec:
         terminationGracePeriodSeconds: 0
         containers:

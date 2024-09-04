@@ -14,14 +14,16 @@ Helps you resize pods created by a DaemonSet depending on the amount of allocata
     - `node-specific-sizing.manomano.tech/request-memory-fraction: 0.1`
     - `node-specific-sizing.manomano.tech/limit-memory-fraction: 0.1`
 
-3. Optionally set absolute minimums, maximums and exclusions
-   NB: Only pods with the `node-specific-sizing.manomano.tech/enabled: "true"` label will see their resource modified.
-   - `node-specific-sizing.manomano.tech/minimum-cpu-request: 0.5`
-   - `node-specific-sizing.manomano.tech/minimum-cpu-limit: 0.5`
-   - `node-specific-sizing.manomano.tech/maximum-memory-request: 0.5`
-   - `node-specific-sizing.manomano.tech/maximum-memory-limit: 0.5`
+3. *Optionally*, set up appropriate minimums and maximums.
+   - `node-specific-sizing.manomano.tech/minimum-cpu: 50m`
+   - `node-specific-sizing.manomano.tech/maximum-cpu: 4`
+   - `node-specific-sizing.manomano.tech/minimum-memory: 50M`
+   - `node-specific-sizing.manomano.tech/maximum-memory: 4G`
+   - NOTE: Minimums and maximums are applied to both resource and limits. 
+     We don't see the need to add different minimums for requests in limits in practice. You may challenge that choice by opening an issue.
+   - NOTE: Minimums and maximums are to be understood per-pod and not per-container. See resource-sizing algorithm for details.
 
-4. Optionally exclude some containers from dynamic-sizing
+4. *Optionally*, exclude some containers from dynamic sizing.
     - `node-specific-sizing.manomano.tech/exclude-containers: istio-init,istio-proxy`
     - NOT IMPLEMENTED
 
@@ -43,7 +45,7 @@ follows:
   For any given container, `relative_tunable = container_tunable / (sum(container_tunables) - sum(excluded_container_tunables))` 
 - Derive a `pod_tunable_budget = allocatable_tunable_on_node * configured_pod_proportion - sum(excluded_container_tunables)`. This represents the resources that will be given to the pod.
 - Clamp `pod_tunable_budget` if minimums and/or maximums are set for that tunable.
-- Finally, `new_absolute_tunable = pod_tunable_budget * relative_tunable` spreads the budget around.
+- Finally, `new_absolute_tunable = pod_tunable_budget * relative_tunable` spreads the budget between containers.
 
 Exclusions and clamping notwithstanding, the requests/limits proportions between the different containers do not vary with node specific sizing.
 
