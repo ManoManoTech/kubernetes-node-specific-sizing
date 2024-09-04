@@ -73,7 +73,7 @@ PC3| .50  .55  .50  .55       //    Output: relative_tunables
 - [go](https://golang.org/dl/) version v1.17+
 - [docker](https://docs.docker.com/install/) version 19.03+
 - [kubectl](https://kubernetes.io/docs/tasks/tools/install-kubectl/) version v1.19+
-- [k3d](...) recommended.
+- [k3d](https://k3d.io/) recommended.
 
 ### Build & Playground
 
