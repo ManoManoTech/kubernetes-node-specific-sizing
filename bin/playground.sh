@@ -12,6 +12,7 @@ WITH_BUILD=0
 WITH_DEPLOY=0
 WITH_WORKLOAD=0
 OPT_IN_MODE=0
+AMBIENT_CONTEXT=0
 
 show_help() {
   cat << EOF
@@ -23,11 +24,17 @@ show_help() {
 
   Options:
   -r, --recreate-cluster     Drop and recreate the playground K3D cluster
+
   -b, --with-build           Build the current version of the webhook docker image
                              and make it available in the playground cluster
+
   -d, --with-deploy          Re-renders the various manifests required to setup the
                              webhook deployment and its configuration.
+
   -w, --with-workload        Re-applies the demonstration/test DaemonSet workload.
+
+  -c, --ambient-context      !!! Target ambient kubectl context instead of the K3d
+                             !!! playground cluster. Caution advised: read the script.
 EOF
 }
 
@@ -38,6 +45,7 @@ while true; do
   -b | --with-build ) OPT_IN_MODE=1; WITH_BUILD=1; shift ;;
   -d | --with-deploy ) OPT_IN_MODE=1; WITH_DEPLOY=1; shift ;;
   -w | --with-workload ) OPT_IN_MODE=1; WITH_WORKLOAD=1; shift ;;
+  -c | --ambient-context ) AMBIENT_CONTEXT=1; shift ;;
   -- ) shift; break ;;
   * ) break ;;
   esac
@@ -60,14 +68,22 @@ if ! k3d cluster list "$K3D_CLUSTER" | grep knss >/dev/null 2>&1; then
   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.3/cert-manager.yaml
 fi
 
-_ctx=$(kubectl config get-contexts -o name | grep knss)
-if [[ -z "$_ctx" ]]; then
-  echo "Cannot find knss kubectl context, aborting" >&2
-  exit 1
+if [[ "$AMBIENT_CONTEXT" == 0 ]]; then
+  _ctx=$(kubectl config get-contexts -o name | grep knss)
+  if [[ -z "$_ctx" ]]; then
+    echo "Cannot find knss kubectl context, aborting" >&2
+    exit 1
+  fi
 fi
 
 function kctl() {
+  if [[ "$AMBIENT_CONTEXT" == 0 ]]; then
+    echo "[playground]" kubectl --context "$_ctx" "$@"
     kubectl --context "$_ctx" "$@"
+  elif [[ "$AMBIENT_CONTEXT" == 1 ]]; then
+    echo "[ambient-context]" kubectl "$@"
+    kubectl "$@"
+  fi
 }
 
 cd "${SCRIPT_DIR}/.."
@@ -88,6 +104,8 @@ if [[ "$OPT_IN_MODE" == 0 || "$WITH_WORKLOAD" == 1 ]]; then
   kind: DaemonSet
   metadata:
     name: sleep-daemonset
+    labels:
+      app: sleep
   spec:
     selector:
       matchLabels:
@@ -99,11 +117,19 @@ if [[ "$OPT_IN_MODE" == 0 || "$WITH_WORKLOAD" == 1 ]]; then
           node-specific-sizing.manomano.tech/enabled: "true"
         annotations:
           node-specific-sizing.manomano.tech/request-memory-fraction: "0.05"
-          node-specific-sizing.manomano.tech/limit-memory-fraction: "0.09"
+          node-specific-sizing.manomano.tech/limit-memory-fraction: "0.06"
           node-specific-sizing.manomano.tech/minimum-memory: "40M"
-          node-specific-sizing.manomano.tech/maximum-memory: "742M"
+          node-specific-sizing.manomano.tech/maximum-memory: "600M"
       spec:
         terminationGracePeriodSeconds: 0
+        priorityClassName: system-node-critical
+        tolerations:
+        - effect: NoSchedule
+          key: node.kubernetes.io/role
+          operator: Exists
+        - effect: NoSchedule
+          key: node.kubernetes.io/arch
+          operator: Exists
         containers:
         - name: sleep-a
           image: alpine
