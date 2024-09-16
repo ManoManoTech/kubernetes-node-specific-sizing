@@ -1,0 +1,24 @@
+{{- if and .Values.rbac.create (or (not .Values.rbac.namespaced) .Values.rbac.extraClusterRoleRules) }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "node-specific-sizing.fullname" . }}-clusterrolebinding
+  labels: 
+    {{ - include "node-specific-sizing.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  {{- if .Values.rbac.useExistingClusterRole }}
+  name: {{ .Values.rbac.useExistingClusterRole }}
+  {{- else }}
+  name: {{ include "node-specific-sizing.fullname" . }}-clusterrole
+  {{- end }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "node-specific-sizing.serviceAccountName" . }}
+  namespace: {{ include "node-specific-sizing.namespace" . }}
+{{- end }}

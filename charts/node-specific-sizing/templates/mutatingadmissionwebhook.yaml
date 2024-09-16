@@ -1,0 +1,27 @@
+kind: MutatingWebhookConfiguration
+apiVersion: admissionregistration.k8s.io/v1
+metadata:
+  name: {{ include "node-specific-sizing.fullname" . }}
+  annotations:
+    cert-manager.io/inject-ca-from: kube-system/{{ include "node-specific-sizing.fullname" . }}-client-cert
+webhooks:
+  - name: {{ include "node-specific-sizing.fullname" . }}.svc.cluster.local
+    objectSelector:
+      matchLabels:
+        node-specific-sizing.manomano.tech/enabled: "true"
+    admissionReviewVersions: [ "v1" ]
+    sideEffects: None
+    failurePolicy: Ignore
+    timeoutSeconds: 2
+    clientConfig:
+      service:
+        namespace: kube-system
+        name: {{ include "node-specific-sizing.fullname" . }}
+        path: /mutate
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        operations: ["CREATE"]
+        scope: Namespaced
+

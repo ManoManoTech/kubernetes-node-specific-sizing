@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "node-specific-sizing.fullname" . }}
+  labels:
+    {{- include "node-specific-sizing.labels" . | nindent 4 }}
+  {{- if .Values.deployment.annotations }}
+  annotations:
+    {{- toYaml .Values.deployment.annotations | nindent 4 }}
+spec:
+  replicas: {{ .Values.deployment.replicas }}
+  selector:
+    matchLabels:
+      app: {{- include "node-specific-sizing.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "node-specific-sizing.labels" . | nindent 4 }}
+    spec:
+      {{- include "node-specific-sizing.pod" . | nindent 6 }}
+        
