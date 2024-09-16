@@ -1,0 +1,27 @@
+
+global:
+  imageRegistry: docker.io
+
+image:
+  sha: ""
+
+annotations: {}
+
+rbac:
+  create: true
+  ## Use an existing ClusterRole/Role (depending on rbac.namespaced false/true)
+  # useExistingRole: name-of-some-role
+  # useExistingClusterRole: name-of-some-clusterRole
+  extraClusterRoleRules: []
+  # - apiGroups: []
+  #   resources: []
+  #   verbs: []
+
+## Override the deployment namespace
+##
+namespaceOverride: ""
+
+serviceAccount:
+  autoMount: true
+  labels: {}
+  annotations: {}
