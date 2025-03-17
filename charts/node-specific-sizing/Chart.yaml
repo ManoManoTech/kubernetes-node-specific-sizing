@@ -1,0 +1,13 @@
+apiVersion: v2
+name: node-specific-sizing
+description: A Kubernetes controller that helps resize pods created by a DaemonSet depending on the amount of allocatable resources present on the node.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: cert-manager
+    repository: https://charts.jetstack.io
+    condition: certmanager.enabled
+    alias: certmanager
+    version: "v1.15.3"

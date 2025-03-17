@@ -70,13 +70,13 @@ jobs:
       - name: "Update Deployment Image Tag" # [3]
         working-directory: "deploy"
         run: |
-          # Get any tags that were pushed 
+          # Get any tags that were pushed
           # XXX: Get sha or tag one
           # Hint: tags are actually full image names with tags here
           image_tag=$(echo ${{ steps.meta.outputs.tags }} | cut -d',' -f1)
-        
+
           kustomize edit set image node-specific-sizing=$image_tag
-          
+
           kustomize build . > deploy.yaml
 
       - name: "Upload Deployment YAML" # [4]

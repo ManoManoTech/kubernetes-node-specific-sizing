@@ -1,0 +1,28 @@
+
+image:
+  repository: "ghcr.io/manomanotech/kubernetes-node-specific-sizing"
+  tag: "sha-28e2a98"
+
+replicas: 3
+
+imagePullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 128Mi
+  requests:
+    cpu: 10m
+    memory: 64Mi
+
+
+# Certmanager specific values
+certmanager:
+  enabled: false
+  crds:
+    enabled: true
+    keep: true

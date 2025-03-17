@@ -2,6 +2,24 @@
 
 Helps you resize pods created by a DaemonSet depending on the amount of allocatable resources present on the node.
 
+## Helm
+
+### Install
+
+```bash
+helm repo add node-specific-sizing https://manomanotech.github.io/kubernetes-node-specific-sizing/
+helm repo update
+helm repo list
+helm install node-specific-sizing node-specific-sizing/node-specific-sizing --namespace node-specific-sizing --create-namespace
+helm list --namespace node-specific-sizing
+```
+
+### Uninstall
+
+```bash
+helm uninstall node-specific-sizing --namespace node-specific-sizing
+```
+
 ## How to use
 
 1. Add the `node-specific-sizing.manomano.tech/enabled: "true"` label any pod you'd like to size depending on the node.
@@ -19,7 +37,7 @@ Helps you resize pods created by a DaemonSet depending on the amount of allocata
    - `node-specific-sizing.manomano.tech/maximum-cpu: 4`
    - `node-specific-sizing.manomano.tech/minimum-memory: 50M`
    - `node-specific-sizing.manomano.tech/maximum-memory: 4G`
-   - NOTE: Minimums and maximums are applied to both resource and limits. 
+   - NOTE: Minimums and maximums are applied to both resource and limits.
      We don't see the need to add different minimums for requests in limits in practice. You may challenge that choice by opening an issue.
    - NOTE: Minimums and maximums are to be understood per-pod and not per-container. See resource-sizing algorithm for details.
 
@@ -29,7 +47,7 @@ Helps you resize pods created by a DaemonSet depending on the amount of allocata
 
 5. Take care of the following
     - In some instances, if limit ends up being below request it will be adjusted to be equal to the request.
-    - WARNING: We have not tested all cases of partial configuration or weird mish-mashes. 
+    - WARNING: We have not tested all cases of partial configuration or weird mish-mashes.
     - You're safer defining both requests and limits, or just requests if the underlying DaemonSet does not have limits.
     - Having some containers define a request or limit while others do not is unsupported.
 
@@ -42,7 +60,7 @@ To achieve this, the updated container requests and limits (from here on out, "t
 follows:
 
 - For each container in the pod, and for each tunable, compute the tunable's relative value per container.
-  For any given container, `relative_tunable = container_tunable / (sum(container_tunables) - sum(excluded_container_tunables))` 
+  For any given container, `relative_tunable = container_tunable / (sum(container_tunables) - sum(excluded_container_tunables))`
 - Derive a `pod_tunable_budget = allocatable_tunable_on_node * configured_pod_proportion - sum(excluded_container_tunables)`. This represents the resources that will be given to the pod.
 - Clamp `pod_tunable_budget` if minimums and/or maximums are set for that tunable.
 - Finally, `new_absolute_tunable = pod_tunable_budget * relative_tunable` spreads the budget between containers.
@@ -82,7 +100,7 @@ PC3| .50  .55  .50  .55       //    Output: relative_tunables
 1. `make build` and `make docker-build`
 2. `make deploy` to setup manifests in current context
 3. `bin/playground.sh` to setup a K3D playground cluster with a toy daemonset with annotations set
-4. `bin/dev_toggle.sh` to reconfigure the K3D playground cluster so that it can reach the webhook server on your workstation, 
+4. `bin/dev_toggle.sh` to reconfigure the K3D playground cluster so that it can reach the webhook server on your workstation,
     as well as extracting certs from the cluster. This allows you to use the IDE of your choice and try things directly.
 
-### 
+###

@@ -1,0 +1,29 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "chart.fullname" . }}-webhook
+  annotations:
+    cert-manager.io/inject-ca-from: '{{ .Release.Namespace }}/{{ include "chart.fullname" . }}-serving-cert'
+  labels:
+  {{- include "chart.labels" . | nindent 4 }}
+webhooks:
+  - name: {{ include "chart.fullname" . }}.svc.cluster.local
+    objectSelector:
+      matchLabels:
+        node-specific-sizing.manomano.tech/enabled: "true"
+    admissionReviewVersions: [ "v1" ]
+    sideEffects: None
+    failurePolicy: Ignore
+    timeoutSeconds: 1
+    clientConfig:
+      service:
+        namespace: node-specific-sizing
+        name: {{ include "chart.fullname" . }}
+        path: /mutate
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        resources: ["pods"]
+        operations: ["CREATE"]
+        scope: Namespaced
+
