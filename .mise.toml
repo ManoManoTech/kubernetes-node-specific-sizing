@@ -1,5 +1,5 @@
 [tools]
-go = "1.23"
+go = "1.27"
 cmctl = "cmd/ctl/v1.14.7"
 
 [env]
