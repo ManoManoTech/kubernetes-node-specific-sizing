@@ -70,13 +70,12 @@ jobs:
       - name: "Update Deployment Image Tag" # [3]
         working-directory: "deploy"
         run: |
-          # Get any tags that were pushed 
-          # XXX: Get sha or tag one
-          # Hint: tags are actually full image names with tags here
-          image_tag=$(echo ${{ steps.meta.outputs.tags }} | cut -d',' -f1)
-        
+          # steps.meta.outputs.tags is newline-separated, not comma-separated -
+          # take the first (primary semver) tag
+          image_tag=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+
           kustomize edit set image node-specific-sizing=$image_tag
-          
+
           kustomize build . > deploy.yaml
 
       - name: "Upload Deployment YAML" # [4]
@@ -90,5 +89,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          file: deploy.yaml
+          file: deploy/deploy.yaml
           release_id: ${{ github.event.release.id }}
