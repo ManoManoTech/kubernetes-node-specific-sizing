@@ -26,7 +26,8 @@ jobs:
     permissions:
       # For the docker push and the git clone
       packages: write
-      contents: read
+      # write is required to attach the deploy.yaml asset to the release
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
